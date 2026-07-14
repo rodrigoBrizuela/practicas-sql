@@ -1,76 +1,53 @@
 -- ══════════════════════════════════════════
--- MiniStore — Soluciones con Outer JOINs
--- Autor: Rodrigo Brizuela
--- Fecha: 13/07/2026
+-- RetailChain — UNION y UNION ALL
+-- Autor: [Rodrigo Brizuela]
+-- Fecha: [14/07/26]
 -- ══════════════════════════════════════════
 
-/*=========================================================
-CONSULTA 1 - LEFT JOIN
-Pregunta:
-¿Qué productos del catálogo nunca fueron vendidos?
-=========================================================*/
+-- ── CONSULTA 1: UNION ────────────────────
+-- Reporte de Catálogo Unificado
+-- Pregunta de negocio: ¿Qué productos únicos comercializa
+-- la empresa en toda su red de sucursales?
+-- Operador: UNION (elimina filas completamente duplicadas)
+
+SELECT 
+	sn.id_producto,
+	sn.nombre_producto AS nombre_producto
+FROM dbo.inventario_sucursal_norte sn
+
+UNION
 
 SELECT
-    p.producto_id,
-    p.nombre,
-    p.categoria,
-    p.precio,
-    v.venta_id,
-    v.cliente_id,
-    v.cantidad,
-    v.fecha_venta
-FROM productos AS p
-LEFT JOIN ventas AS v
-    ON p.producto_id = v.producto_id
-WHERE v.venta_id IS NULL
-ORDER BY p.producto_id;
+    ss.id_producto,
+    ss.nombre_producto AS nombre_producto
+FROM dbo.inventario_sucursal_sur ss
 
 
-
-/*=========================================================
-CONSULTA 2 - RIGHT JOIN
-Pregunta:
-¿Existen ventas registradas con productos que no figuran
-en el catálogo?
-=========================================================*/
+-- ── CONSULTA 2: UNION ALL ────────────────
+-- Auditoría de Stock Total
+-- Pregunta de negocio: ¿Cuántos registros físicos de stock
+-- existen en total entre ambas sucursales?
+-- Operador: UNION ALL (mantiene todos los registros incluyendo duplicados)
 
 SELECT
-    p.producto_id,
-    p.nombre,
-    p.categoria,
-    p.precio,
-    v.venta_id,
-    v.producto_id AS producto_vendido,
-    v.cliente_id,
-    v.cantidad,
-    v.fecha_venta
-FROM productos AS p
-RIGHT JOIN ventas AS v
-    ON p.producto_id = v.producto_id
-WHERE p.producto_id IS NULL
-ORDER BY v.venta_id;
+	sn.id_producto,
+	sn.nombre_producto AS nombre_producto,
+	sn.stock AS stock
+FROM dbo.inventario_sucursal_norte sn
 
-
-
-/*=========================================================
-CONSULTA 3 - FULL OUTER JOIN
-Pregunta:
-Vista completa de auditoría.
-=========================================================*/
+UNION ALL
 
 SELECT
-    p.producto_id,
-    p.nombre,
-    p.categoria,
-    p.precio,
-    v.venta_id,
-    v.producto_id AS producto_vendido,
-    v.cliente_id,
-    v.cantidad,
-    v.fecha_venta
-FROM productos AS p
-FULL OUTER JOIN ventas AS v
-    ON p.producto_id = v.producto_id
-ORDER BY
-    COALESCE(p.producto_id, v.producto_id),
-    v.venta_id;
+	ss.id_producto,
+	ss.nombre_producto AS nombre_producto,
+	ss.stock AS stock
+FROM dbo.inventario_sucursal_sur ss
+
+
+-- ── CONSULTA 3: COMPARACIÓN DE RESULTADOS ─
+-- Ejecutá estas dos consultas para comparar cuántas filas
+-- devuelve cada operador y explicá la diferencia en tu README
+
+SELECT COUNT(*) AS filas_union     FROM (/* tu UNION aquí */)     AS resultado_union; --11
+SELECT COUNT(*) AS filas_union_all FROM (/* tu UNION ALL aquí */) AS resultado_union_all; --14
+
