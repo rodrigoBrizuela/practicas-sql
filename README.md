@@ -1,59 +1,38 @@
-1. ¿Por qué usaste LEFT JOIN para la Consulta 1 y no INNER JOIN?
+1. ¿Cuántas filas devuelve cada consulta y por qué son distintas?
 
-Utilicé LEFT JOIN porque necesitaba conservar todos los registros de la tabla productos, incluso aquellos que nunca tuvieron una venta.
+La consulta con UNION devuelve 11 filas, mientras que la consulta con UNION ALL devuelve 14 filas.
 
-Si hubiera utilizado un INNER JOIN, solamente aparecerían los productos que tienen coincidencias en la tabla ventas. En ese caso, los productos 108 (Hub USB-C 7p) y 109 (Parlante Bluetooth) desaparecerían del resultado porque nunca fueron vendidos.
+La consulta con UNION devuelve 11 filas porque se seleccionan únicamente id_producto y nombre_producto. Existen tres productos presentes en ambas sucursales (Monitor 4K 27", Teclado Mecánico y SSD Externo 1TB), por lo que UNION conserva una sola aparición de cada uno. Si también se hubiera seleccionado la columna stock, esas filas dejarían de ser idénticas, ya que el stock es diferente en cada sucursal, y UNION devolvería las 14 filas.
 
-El LEFT JOIN permite detectar precisamente esos productos sin ventas mediante los valores NULL en las columnas provenientes de la tabla ventas.
+En este conjunto de datos existían 3 registros idénticos entre ambas sucursales (mismo id_producto, mismo nombre_producto y mismo stock). Esos registros fueron eliminados por UNION, por eso el resultado contiene menos filas.
 
-2. ¿Por qué usaste RIGHT JOIN para la Consulta 2?
+2. ¿Por qué UNION ALL es más eficiente?
 
-Utilicé RIGHT JOIN porque la pregunta de negocio busca conservar todas las filas de la tabla ventas, incluso cuando no existe un producto correspondiente en el catálogo.
+UNION ALL es más eficiente porque simplemente concatena los resultados de ambas consultas.
 
-En mi consulta:
+En cambio, UNION debe realizar una operación adicional para identificar y eliminar registros duplicados. Internamente compara todas las filas obtenidas por ambos SELECT antes de devolver el resultado final.
 
-La tabla izquierda es productos.
-La tabla derecha es ventas.
+Esa comparación consume CPU y memoria, especialmente cuando se trabaja con millones de registros.
 
-Al utilizar RIGHT JOIN, SQL devuelve todas las ventas. Cuando una venta hace referencia a un producto inexistente, las columnas de productos aparecen con valores NULL.
+3. ¿En qué casos usarías cada uno?
+UNION
+Crear un catálogo único de productos provenientes de distintas sucursales.
+Unificar una lista de clientes registrados en diferentes sistemas evitando clientes repetidos.
+UNION ALL
+Consolidar ventas mensuales para obtener el total de operaciones realizadas.
+Unir registros históricos y actuales para realizar análisis estadísticos sin perder ninguna observación.
+4. ¿Qué ocurre si las columnas no coinciden?
 
-Esto permite detectar errores de carga de datos, como la venta con producto_id = 999.
+Para utilizar UNION o UNION ALL, ambas consultas deben devolver el mismo número de columnas y en el mismo orden. Además, los tipos de datos deben ser compatibles.
 
-3. ¿Qué representan los valores NULL?
+Si esto no se cumple, SQL Server genera errores como:
 
-Los valores NULL indican que no existe una coincidencia entre ambas tablas.
+Distinto número de columnas
 
-En la Consulta 1:
+All queries combined using a UNION, INTERSECT or EXCEPT operator must have an equal number of expressions in their target lists.
 
-Cuando venta_id es NULL, significa que ese producto nunca fue vendido.
+Tipos incompatibles
 
-Ejemplo:
+SQL Server intentará convertir los tipos de datos automáticamente cuando sea posible. Si no puede hacerlo, devolverá un error de conversión, por ejemplo:
 
-producto_id = 108
-Hub USB-C 7p
-
-No existe ninguna venta asociada a ese producto.
-
-En la Consulta 2:
-
-Cuando productos.producto_id es NULL, significa que existe una venta cuyo producto no está registrado en el catálogo.
-
-Ejemplo:
-
-venta_id = 10
-producto_id = 999
-
-La venta existe, pero el producto no.
-
-4. ¿Cuándo usarías FULL OUTER JOIN?
-
-Utilizaría FULL OUTER JOIN cuando necesito realizar una auditoría completa de los datos.
-
-Por ejemplo:
-
-detectar productos sin ventas;
-detectar ventas con productos inexistentes;
-verificar inconsistencias entre dos sistemas;
-comparar información proveniente de distintas bases de datos.
-
-Este tipo de unión permite visualizar todas las filas de ambas tablas sin perder información.
+Conversion failed when converting the varchar value to data type int.
