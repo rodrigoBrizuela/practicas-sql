@@ -1,1 +1,44 @@
-Documentación: Conectividad y Transformación de Datos - Set de Inventario y Ventas1. Introducción y ContextoEl presente documento detalla el proceso de extracción, transformación y limpieza (ETL) aplicado sobre el reporte de inventario extraído del sistema legacy de la compañía. El objetivo principal de este proceso ha sido adecuar los datos bajo estándares profesionales de Business Intelligence, garantizando la calidad de la información antes de ser cargada en el modelo relacional de Power BI Desktop.2. Transformaciones Realizadas y Orden de EjecuciónEl proceso de transformación se llevó a cabo dentro del Editor de Power Query siguiendo un orden lógico para evitar la pérdida de consistencia en los datos:Conexión e Importación: Carga del archivo plano .csv original.Renombrado de Columnas (Estandarización): Traducción y normalización de las cabeceras a español legible.Reemplazo de Valores Nulos de Texto ("NULL"): Limpieza de strings erróneos que afectaban las columnas.Asignación de Tipos de Datos Correctos: Configuración manual de formatos numéricos, de texto y de fecha.Normalización de Estructura (Separación en Tablas): División de la tabla plana original en una tabla de Dimensiones (Dim_Producto) y una tabla de Hechos/Transacciones (Fact_Inventario).Eliminación de Duplicados en Dimensiones: Depuración de claves primarias duplicadas en la tabla de productos.3. Justificación Técnica de las DecisionesA. Renombrado de ColumnasAcción: Se cambiaron los nombres técnicos originales (como ProductID, NAME, STOCK_RECOMENDADO) por nombres limpios y descriptivos en español (como ID Producto, Producto, Stock Recomendado).Justificación: * Experiencia de Usuario (UX): En Power BI, los nombres de las columnas se trasladan directamente a las etiquetas de los gráficos. Usar términos de bases de datos con guiones bajos o mezclas de idiomas dificulta la lectura para el usuario de negocio final.Consistencia: Se unificó el formato utilizando mayúsculas iniciales y espacios naturales, eliminando la inconsistencia entre el inglés y el español presente en el archivo original.B. Corrección de Tipos de DatosAcción y Justificación por campo:ID Producto / ID Ubicación $\rightarrow$ Tipo Texto (Text): Aunque visualmente contienen números, los identificadores o códigos no se utilizan para realizar operaciones matemáticas (no se suman ni se promedian). Definirlos como Texto optimiza la indexación en Power BI y previene que el motor intente totalizarlos de manera automática en las tarjetas o reportes.Costo / Precio $\rightarrow$ Número Decimal (Decimal/Currency): Permite conservar la precisión de los decimales originales de las transacciones para cálculos financieros precisos de rentabilidad y margen.Fecha Inicio Venta / Fecha Fin Venta $\rightarrow$ Fecha (Date): El sistema original exportó estos campos con formato de tiempo técnico (AAAA-MM-DD 00:00:00.000). Al transformarlos a formato Fecha puro, se habilita el uso de funciones de inteligencia de tiempo en DAX (Time Intelligence) y la creación de filtros temporales dinámicos.Campos de Cantidad (Stock, Reposición, Días) $\rightarrow$ Número Entero (Whole Number): Al tratarse de unidades de inventario físicas y días de proceso, no existen fracciones decimales, por lo que este tipo de dato es el más óptimo en consumo de memoria.C. Tratamiento de Valores Nulos y DuplicadosLimpieza de "NULL": El reporte del sistema legacy exportó valores vacíos bajo la cadena de texto "NULL". Se realizó un reemplazo masivo de este texto por campos vacíos reales de Power Query (null).Fecha Fin Venta: Que este campo quede vacío (null) es un comportamiento de negocio correcto. Significa que el producto no tiene fecha de fin de ciclo y, por lo tanto, continúa activo a la venta en la actualidad.Tratamiento de Duplicados: * En la tabla origen, los productos aparecían repetidos debido a que se registraban en múltiples ubicaciones físicas simultáneamente.Mantener esta estructura plana en una sola tabla viola las reglas de normalización de bases de datos. La solución técnica fue la división en dos tablas explicada a continuación.4. Normalización y Criterio de Separación de TablasPara cumplir con las buenas prácticas de modelado de datos en Power BI (Esquema de Estrella), el archivo original se dividió en dos entidades independientes conectadas por la columna clave ID Producto:1. Tabla de Dimensión (Dim_Producto)Columnas: ID Producto, Producto, Color, Stock Recomendado, Punto de Reposición, Costo, Precio, Días de Fabricación, Fecha Inicio Venta, Fecha Fin Venta, Subcategoría, Categoría.Criterio aplicado: Contiene únicamente los atributos descriptivos e invariables del producto. En esta tabla se aplicó la acción Quitar Duplicados sobre la columna ID Producto para asegurar la cardinalidad de 1 (clave primaria única), permitiendo que cada producto exista una sola vez en este catálogo.2. Tabla de Hechos / Transacciones (Fact_Inventario)Columnas: ID Producto, ID Ubicación, Ubicación.Criterio aplicado: Registra los eventos o hechos de almacenamiento (dónde está ubicado cada producto). Aquí no se eliminaron duplicados ya que un mismo producto puede (y suele) estar distribuido en múltiples almacenes o ubicaciones físicas (cardinalidad de Varios).
+# M5 — Cruzando tablas para enriquecer el análisis
+
+Consultas SQL (SQL Server / T-SQL) sobre la base `Ventas_Tech_DB`, que combinan `ventas`, `clientes`, `productos` y `categorias` mediante JOINs y UNION ALL. Este archivo es la pre-entrega de M5 y su vista principal (Consulta 1) será la fuente de datos del dashboard de Power BI en M7.
+
+Archivo: [`m5_consultas_joins.sql`](./m5_consultas_joins.sql)
+
+## Supuestos sobre el esquema
+
+La consigna original pedía columnas de `región`, `segmento` y `canal` que no existen en `Ventas_Tech_DB`. Adaptaciones hechas:
+
+- **Región / segmento:** no hay tabla `territorios` ni columna `segmento` en `clientes`. Se usa `ciudad` (columna real de `clientes`) como dato geográfico.
+- **Canal (Online/Presencial):** la tabla `ventas` no distingue canal de venta. Para poder practicar `UNION ALL` como pide la consigna, el canal se **simula** con un criterio arbitrario: `id_venta` par → Online, `id_venta` impar → Presencial. Esto es solo a fines didácticos de esta entrega y no representa un canal de venta real registrado en la base.
+
+## Consulta 1 — Vista base del proyecto (INNER JOIN)
+
+Cruza `ventas`, `clientes`, `productos` y `categorias` en una sola vista: cada fila es una venta con cliente, ciudad, producto, categoría, cantidad, precio unitario y total. Es la fuente principal para Power BI en M7.
+
+## Consulta 2 — Clientes sin ventas (LEFT JOIN)
+
+Clientes registrados que nunca compraron, aislados con `WHERE ... IS NULL` sobre el resultado del LEFT JOIN.
+
+**Resultado:** vacío. En `Ventas_Tech_DB` todos los clientes registrados tienen al menos una compra, así que no hay filas que mostrar — es un resultado válido, no un error.
+
+## Consulta 3 — Productos sin ventas (LEFT JOIN)
+
+Productos del catálogo sin ninguna venta registrada, con la misma lógica de LEFT JOIN + `IS NULL`.
+
+**Resultado:** vacío, por la misma razón: todos los productos del catálogo tienen al menos una venta registrada.
+
+## Consulta 4 — Consolidado por canal (UNION ALL)
+
+Combina las ventas "Online" y "Presencial" (canal simulado, ver supuestos arriba) en un solo resultado con `UNION ALL`, y calcula el total facturado por canal con `GROUP BY`.
+
+**Resultado obtenido:**
+
+| Canal | Total facturado |
+|---|---|
+| Online | $1884.00 |
+| Presencial | $4560.00 |
+
+## Notas
+
+- Consultas ejecutadas y verificadas en SSMS contra `Ventas_Tech_DB`, sin errores de sintaxis.
+- Los resultados vacíos de las Consultas 2 y 3 fueron confirmados manualmente: no son un error de JOIN, sino que reflejan que en este dataset no hay clientes ni productos sin movimiento.
